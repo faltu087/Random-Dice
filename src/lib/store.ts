@@ -24,6 +24,7 @@ export type SectionType = "Game" | "Lucky" | "Decision" | "Yoga";
 interface DiceState {
   players: Player[];
   currentPlayerIndex: number;
+  consecutiveSixes: number;
   history: RollHistory[];
   settings: {
     sound: boolean;
@@ -34,6 +35,8 @@ interface DiceState {
   // Actions
   setPlayers: (players: Player[]) => void;
   nextTurn: () => void;
+  incrementSixes: () => void;
+  resetSixes: () => void;
   addHistory: (section: SectionType, result: number) => void;
   updateSettings: (settings: Partial<DiceState["settings"]>) => void;
   setActiveSection: (section: SectionType) => void;
@@ -45,6 +48,7 @@ export const useDiceStore = create<DiceState>()(
     (set) => ({
       players: [{ id: "1", name: "Player 1", color: "#CF8012" }],
       currentPlayerIndex: 0,
+      consecutiveSixes: 0,
       history: [],
       settings: {
         sound: true,
@@ -52,10 +56,13 @@ export const useDiceStore = create<DiceState>()(
       },
       activeSection: "Game",
 
-      setPlayers: (players) => set({ players, currentPlayerIndex: 0 }),
+      setPlayers: (players) => set({ players, currentPlayerIndex: 0, consecutiveSixes: 0 }),
       nextTurn: () => set((state) => ({ 
-        currentPlayerIndex: (state.currentPlayerIndex + 1) % (state.players.length || 1) 
+        currentPlayerIndex: (state.currentPlayerIndex + 1) % (state.players.length || 1),
+        consecutiveSixes: 0
       })),
+      incrementSixes: () => set((state) => ({ consecutiveSixes: state.consecutiveSixes + 1 })),
+      resetSixes: () => set({ consecutiveSixes: 0 }),
       addHistory: (section, result) => set((state) => {
         const currentPlayer = state.players[state.currentPlayerIndex];
         const newEntry: RollHistory = {
@@ -76,6 +83,7 @@ export const useDiceStore = create<DiceState>()(
       resetAll: () => set({
         players: [{ id: "1", name: "Player 1", color: "#CF8012" }],
         currentPlayerIndex: 0,
+        consecutiveSixes: 0,
         history: [],
         activeSection: "Game",
       }),
