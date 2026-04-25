@@ -1,3 +1,5 @@
+# Random-Dice
+
 # Random-Dice (Smart Dice)
 
 An interactive, AI-powered multi-mode dice application built with Next.js, Genkit, and Tailwind CSS.
