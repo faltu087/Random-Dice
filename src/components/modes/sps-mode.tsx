@@ -9,11 +9,11 @@ import {
   Hand, 
   Scissors, 
   Square, 
-  ShieldQuestion, 
   Swords,
-  Trophy 
+  Trophy,
+  Dices
 } from "lucide-react";
-import { useDiceStore, type SPSChoice, type Player } from "@/lib/store";
+import { useDiceStore, type SPSChoice } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import confetti from "canvas-confetti";
@@ -40,6 +40,7 @@ export function SPSMode() {
   const [p2Name, setP2Name] = React.useState("Player 2");
   const [countdown, setCountdown] = React.useState(3);
   const [roundWinner, setRoundWinner] = React.useState<number | null>(null);
+  const [isRolling, setIsRolling] = React.useState(false);
 
   const p1 = players[0] || { id: "p1", name: p1Name, color: "#E53935" };
   const p2 = players[1] || { id: "p2", name: p2Name, color: "#1E88E5" };
@@ -53,16 +54,23 @@ export function SPSMode() {
     );
   };
 
-  const selectChoice = (idx: 0 | 1, choice: SPSChoice) => {
-    setSPSChoice(idx, choice);
-    if (settings.haptic && "vibrate" in navigator) navigator.vibrate(50);
+  const handleRollBattle = () => {
+    if (isRolling) return;
     
-    if (idx === 0) setSPSPhase("Handover");
-    else startCountdown();
-  };
-
-  const startCountdown = () => {
+    setIsRolling(true);
     setSPSPhase("Countdown");
+    
+    if (settings.haptic && "vibrate" in navigator) navigator.vibrate([50, 30, 50]);
+
+    // Randomize choices
+    const options: SPSChoice[] = ["Stone", "Paper", "Scissors"];
+    const r1 = options[Math.floor(Math.random() * 3)];
+    const r2 = options[Math.floor(Math.random() * 3)];
+    
+    setSPSChoice(0, r1);
+    setSPSChoice(1, r2);
+
+    // Countdown logic
     let count = 3;
     setCountdown(3);
     const interval = setInterval(() => {
@@ -71,6 +79,7 @@ export function SPSMode() {
       if (count === 0) {
         clearInterval(interval);
         revealResult();
+        setIsRolling(false);
       }
     }, 800);
   };
@@ -82,8 +91,14 @@ export function SPSMode() {
     if (c1 === c2) {
       setRoundWinner(null);
     } else {
-      const wins: Record<string, string> = { Stone: "Scissors", Scissors: "Paper", Paper: "Stone" };
-      if (wins[c1!] === c2) {
+      // WIN LOGIC: Stone > Scissors, Scissors > Paper, Paper > Stone
+      const winsAgainst: Record<string, string> = { 
+        Stone: "Scissors", 
+        Scissors: "Paper", 
+        Paper: "Stone" 
+      };
+      
+      if (winsAgainst[c1!] === c2) {
         incrementSPSWin(0);
         setRoundWinner(0);
       } else {
@@ -106,7 +121,7 @@ export function SPSMode() {
             origin: { y: 0.6 },
             colors: ["#E53935", "#1E88E5", "#45B1E8"]
           });
-        }, 3000);
+        }, 2500);
       }
     }
   }, [spsScores, targetScore, spsPhase, setSPSPhase]);
@@ -223,96 +238,80 @@ export function SPSMode() {
       </header>
 
       <main className="flex-1 flex flex-col items-center justify-center relative overflow-hidden">
-         {spsPhase === "SelectingP1" && (
+         {(spsPhase === "SelectingP1" || spsPhase === "SelectingP2" || spsPhase === "Handover") && (
             <div className="text-center space-y-12 animate-in fade-in zoom-in duration-500">
                <div className="space-y-4">
-                  <span className="text-primary text-6xl font-black block">🔴 {p1.name.split(" ")[0]}</span>
-                  <p className="text-2xl font-bold text-white/60">Choose your weapon!</p>
+                  <Dices className="w-20 h-20 text-teal-400 mx-auto animate-bounce" />
+                  <h2 className="text-4xl font-black text-white">READY FOR BATTLE?</h2>
+                  <p className="text-xl text-white/40">Dice will decide your weapons!</p>
                </div>
-               <div className="flex justify-center gap-6">
-                  {["Stone", "Paper", "Scissors"].map(c => (
-                     <button key={c} onClick={() => selectChoice(0, c as SPSChoice)} className="w-28 h-28 bg-white/5 border border-white/10 rounded-3xl flex flex-col items-center justify-center gap-2 hover:bg-white/10 transition-all active:scale-90">
-                        {c === "Stone" && <Square className="w-10 h-10" />}
-                        {c === "Paper" && <Hand className="w-10 h-10" />}
-                        {c === "Scissors" && <Scissors className="w-10 h-10" />}
-                        <span className="text-[10px] font-bold uppercase">{c}</span>
-                     </button>
-                  ))}
-               </div>
-               <p className="text-xs text-white/20 uppercase tracking-widest">({p2.name} look away!)</p>
-            </div>
-         )}
-
-         {spsPhase === "Handover" && (
-            <div className="text-center space-y-8 animate-in fade-in duration-500">
-               <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(34,197,94,0.3)] animate-bounce">
-                  <Hand className="w-10 h-10 text-white" />
-               </div>
-               <div className="space-y-2">
-                  <h3 className="text-4xl font-black text-white">READY!</h3>
-                  <p className="text-xl text-white/40">Pass phone to <span className="text-blue-400 font-bold">{p2.name}</span></p>
-               </div>
-               <Button onClick={() => setSPSPhase("SelectingP2")} className="h-18 px-12 bg-teal-500 text-white font-black text-xl rounded-2xl">
-                  I AM READY
+               
+               <Button 
+                onClick={handleRollBattle} 
+                disabled={isRolling}
+                className="h-24 px-16 bg-white text-teal-950 hover:bg-teal-50 font-black text-3xl rounded-[2.5rem] shadow-[0_0_50px_rgba(255,255,255,0.2)] transition-all active:scale-90"
+               >
+                  ROLL BATTLE!
                </Button>
-            </div>
-         )}
-
-         {spsPhase === "SelectingP2" && (
-            <div className="text-center space-y-12 animate-in fade-in zoom-in duration-500">
-               <div className="space-y-4">
-                  <span className="text-blue-500 text-6xl font-black block">🔵 {p2.name.split(" ")[0]}</span>
-                  <p className="text-2xl font-bold text-white/60">Your turn to strike!</p>
-               </div>
-               <div className="flex justify-center gap-6">
-                  {["Stone", "Paper", "Scissors"].map(c => (
-                     <button key={c} onClick={() => selectChoice(1, c as SPSChoice)} className="w-28 h-28 bg-white/5 border border-white/10 rounded-3xl flex flex-col items-center justify-center gap-2 hover:bg-white/10 transition-all active:scale-90">
-                        {c === "Stone" && <Square className="w-10 h-10" />}
-                        {c === "Paper" && <Hand className="w-10 h-10" />}
-                        {c === "Scissors" && <Scissors className="w-10 h-10" />}
-                        <span className="text-[10px] font-bold uppercase">{c}</span>
-                     </button>
-                  ))}
+               
+               <div className="flex gap-4 justify-center opacity-30">
+                  <Square className="w-8 h-8" />
+                  <Hand className="w-8 h-8" />
+                  <Scissors className="w-8 h-8" />
                </div>
             </div>
          )}
 
          {spsPhase === "Countdown" && (
-            <div className="text-[14rem] font-black text-teal-400 animate-ping duration-700">{countdown === 0 ? "GO!" : countdown}</div>
+            <div className="flex flex-col items-center gap-8 animate-pulse">
+               <div className="text-[14rem] font-black text-teal-400 animate-in zoom-in duration-300">
+                  {countdown === 0 ? "GO!" : countdown}
+               </div>
+               <p className="text-teal-500 font-black tracking-[0.5em] uppercase">Calculating Fates...</p>
+            </div>
          )}
 
          {spsPhase === "Reveal" && (
             <div className="flex flex-col items-center gap-12 w-full px-4">
-               <div className="flex gap-8 items-center justify-center w-full max-w-lg">
+               <div className="flex gap-4 sm:gap-8 items-center justify-center w-full max-w-2xl">
                   <div className="flex-1 flex flex-col items-center gap-6">
                      <span className="text-xs font-black uppercase text-white/40">{p1.name}</span>
                      <div 
-                        className="h-40 w-40 rounded-[3rem] flex items-center justify-center shadow-[0_0_50px_rgba(229,57,53,0.3)] animate-in slide-in-from-left-20 duration-700"
+                        className="h-36 w-36 sm:h-48 sm:w-48 rounded-[2.5rem] sm:rounded-[3.5rem] flex items-center justify-center shadow-[0_0_50px_rgba(229,57,53,0.3)] animate-in slide-in-from-left-20 duration-700"
                         style={{ backgroundColor: p1.color }}
                      >
-                        {spsChoices[0] === "Stone" && <Square className="w-20 h-20" />}
-                        {spsChoices[0] === "Paper" && <Hand className="w-20 h-20" />}
-                        {spsChoices[0] === "Scissors" && <Scissors className="w-20 h-20" />}
+                        {spsChoices[0] === "Stone" && <Square className="w-16 h-16 sm:w-24 sm:h-24" />}
+                        {spsChoices[0] === "Paper" && <Hand className="w-16 h-16 sm:w-24 sm:h-24" />}
+                        {spsChoices[0] === "Scissors" && <Scissors className="w-16 h-16 sm:w-24 sm:h-24" />}
                      </div>
                   </div>
-                  <div className="text-5xl font-black text-white/10 italic animate-pulse">VS</div>
+                  
+                  <div className="text-3xl sm:text-5xl font-black text-white/10 italic animate-pulse">VS</div>
+                  
                   <div className="flex-1 flex flex-col items-center gap-6">
                      <span className="text-xs font-black uppercase text-white/40">{p2.name}</span>
                      <div 
-                        className="h-40 w-40 rounded-[3rem] flex items-center justify-center shadow-[0_0_50px_rgba(30,136,229,0.3)] animate-in slide-in-from-right-20 duration-700"
+                        className="h-36 w-36 sm:h-48 sm:w-48 rounded-[2.5rem] sm:rounded-[3.5rem] flex items-center justify-center shadow-[0_0_50px_rgba(30,136,229,0.3)] animate-in slide-in-from-right-20 duration-700"
                         style={{ backgroundColor: p2.color }}
                      >
-                        {spsChoices[1] === "Stone" && <Square className="w-20 h-20" />}
-                        {spsChoices[1] === "Paper" && <Hand className="w-20 h-20" />}
-                        {spsChoices[1] === "Scissors" && <Scissors className="w-20 h-20" />}
+                        {spsChoices[1] === "Stone" && <Square className="w-16 h-16 sm:w-24 sm:h-24" />}
+                        {spsChoices[1] === "Paper" && <Hand className="w-16 h-16 sm:w-24 sm:h-24" />}
+                        {spsChoices[1] === "Scissors" && <Scissors className="w-16 h-16 sm:w-24 sm:h-24" />}
                      </div>
                   </div>
                </div>
                
-               <div className="bg-white/10 px-12 py-5 rounded-[2.5rem] border border-white/20 animate-in slide-in-from-bottom-4 duration-500">
-                  <h3 className="text-4xl font-black text-teal-300">
+               <div className="bg-white/10 px-8 py-4 sm:px-12 sm:py-5 rounded-[2rem] sm:rounded-[2.5rem] border border-white/20 animate-in slide-in-from-bottom-4 duration-500 text-center">
+                  <h3 className="text-2xl sm:text-4xl font-black text-teal-300">
                     {roundWinner === null ? "IT'S A DRAW! 🤝" : `${roundWinner === 0 ? p1.name : p2.name} WINS! ⚡`}
                   </h3>
+                  {roundWinner !== null && (
+                    <p className="text-xs text-teal-400/60 uppercase font-bold mt-2 tracking-widest">
+                       {spsChoices[roundWinner] === "Stone" && "Stone crushes Scissors"}
+                       {spsChoices[roundWinner] === "Paper" && "Paper covers Stone"}
+                       {spsChoices[roundWinner] === "Scissors" && "Scissors cuts Paper"}
+                    </p>
+                  )}
                </div>
 
                <Button onClick={resetSPSRound} className="h-16 px-12 bg-teal-500 hover:bg-teal-600 text-white font-black text-xl rounded-2xl shadow-xl">
