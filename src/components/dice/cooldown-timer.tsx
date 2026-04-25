@@ -35,7 +35,7 @@ export function CooldownTimer({ duration, isActive, onComplete }: CooldownTimerP
     };
   }, [isActive, duration]);
 
-  // Completion logic: triggers the parent callback outside of the state update cycle
+  // Completion logic: triggers the parent callback via useEffect to avoid rendering side effects
   React.useEffect(() => {
     if (isActive && timeLeft <= 0) {
       onComplete();
@@ -47,7 +47,7 @@ export function CooldownTimer({ duration, isActive, onComplete }: CooldownTimerP
   if (!isActive) return null;
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
       <svg width={size} height={size} className="transform -rotate-90">
         <circle
           cx={size / 2}
@@ -56,22 +56,22 @@ export function CooldownTimer({ duration, isActive, onComplete }: CooldownTimerP
           stroke="currentColor"
           strokeWidth={stroke}
           fill="transparent"
-          className="text-primary/10"
+          className="text-white/20"
         />
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="currentColor"
+          stroke="white"
           strokeWidth={stroke}
           fill="transparent"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           strokeLinecap="round"
-          className="text-primary transition-all duration-100 ease-linear"
+          className="transition-all duration-100 ease-linear drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]"
         />
       </svg>
-      <span className="absolute text-primary font-headline font-bold text-xl">
+      <span className="absolute text-white font-headline font-bold text-2xl drop-shadow-md">
         {Math.ceil(timeLeft)}
       </span>
     </div>
