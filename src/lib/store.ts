@@ -10,7 +10,6 @@ export type Player = {
   id: string;
   name: string;
   color: string;
-  score?: number;
 };
 
 export type RollHistory = {
@@ -24,6 +23,9 @@ export type RollHistory = {
 };
 
 export type SectionType = "Game" | "Lucky" | "Decision" | "Yoga";
+
+export type SPSChoice = "Stone" | "Paper" | "Scissors" | null;
+export type SPSPhase = "Setup" | "SelectingP1" | "Handover" | "SelectingP2" | "Countdown" | "Reveal" | "GameOver";
 
 interface DiceState {
   gameMode: GameMode;
@@ -41,17 +43,19 @@ interface DiceState {
   // Tournament State
   tournamentConfig: {
     rollsPerPlayer: number;
-    totalPlayers: number;
   };
   tournamentCurrentRoll: number;
-  tournamentScores: Record<string, number>; // playerID -> score
+  tournamentScores: Record<string, number>; // playerID -> total score
+  tournamentRollLog: Record<string, number[]>; // playerID -> list of rolls
 
   // SPS State
   spsConfig: {
     bestOf: number;
   };
+  spsPhase: SPSPhase;
   spsScores: [number, number]; // [player1, player2]
   spsCurrentRound: number;
+  spsChoices: [SPSChoice, SPSChoice];
   
   // Actions
   setGameMode: (mode: GameMode) => void;
@@ -70,8 +74,12 @@ interface DiceState {
   nextTournamentRoll: () => void;
 
   // SPS Actions
-  startSPS: (bestOf: number) => void;
-  updateSPSScore: (p1Win: boolean | null) => void; // null for draw
+  startSPSSetup: () => void;
+  startSPSGame: (bestOf: number, p1: Player, p2: Player) => void;
+  setSPSChoice: (playerIdx: 0 | 1, choice: SPSChoice) => void;
+  setSPSPhase: (phase: SPSPhase) => void;
+  incrementSPSWin: (playerIdx: 0 | 1) => void;
+  resetSPSRound: () => void;
 
   resetAll: () => void;
 }
@@ -81,8 +89,8 @@ export const useDiceStore = create<DiceState>()(
     (set) => ({
       gameMode: "Menu",
       players: [
-        { id: "1", name: "Player 1", color: "#CF8012" },
-        { id: "2", name: "Player 2", color: "#F46659" }
+        { id: "1", name: "Player 1", color: "#E53935" },
+        { id: "2", name: "Player 2", color: "#1E88E5" }
       ],
       currentPlayerIndex: 0,
       consecutiveSixes: 0,
@@ -94,15 +102,30 @@ export const useDiceStore = create<DiceState>()(
       activeSection: "Game",
       lastAiWisdom: null,
 
-      tournamentConfig: { rollsPerPlayer: 3, totalPlayers: 0 },
+      tournamentConfig: { rollsPerPlayer: 3 },
       tournamentCurrentRoll: 1,
       tournamentScores: {},
+      tournamentRollLog: {},
 
       spsConfig: { bestOf: 3 },
+      spsPhase: "Setup",
       spsScores: [0, 0],
       spsCurrentRound: 1,
+      spsChoices: [null, null],
 
-      setGameMode: (gameMode) => set({ gameMode }),
+      setGameMode: (mode) => set({ 
+        gameMode: mode,
+        currentPlayerIndex: 0,
+        consecutiveSixes: 0,
+        tournamentScores: {},
+        tournamentRollLog: {},
+        tournamentCurrentRoll: 1,
+        spsScores: [0, 0],
+        spsCurrentRound: 1,
+        spsPhase: "Setup",
+        spsChoices: [null, null]
+      }),
+      
       setPlayers: (players) => set({ players, currentPlayerIndex: 0, consecutiveSixes: 0 }),
       
       nextTurn: () => set((state) => ({ 
@@ -121,7 +144,7 @@ export const useDiceStore = create<DiceState>()(
           section,
           result,
           playerName: currentPlayer?.name || "Guest",
-          playerColor: currentPlayer?.color || "#CF8012",
+          playerColor: currentPlayer?.color || "#E53935",
           timestamp: Date.now(),
           aiWisdom,
         };
@@ -137,18 +160,26 @@ export const useDiceStore = create<DiceState>()(
       setAiWisdom: (lastAiWisdom) => set({ lastAiWisdom }),
 
       startTournament: (rolls) => set((state) => ({
-        tournamentConfig: { rollsPerPlayer: rolls, totalPlayers: state.players.length },
+        tournamentConfig: { rollsPerPlayer: rolls },
         tournamentCurrentRoll: 1,
         tournamentScores: {},
+        tournamentRollLog: {},
         currentPlayerIndex: 0
       })),
 
-      addTournamentScore: (playerId, score) => set((state) => ({
-        tournamentScores: {
-          ...state.tournamentScores,
-          [playerId]: (state.tournamentScores[playerId] || 0) + score
-        }
-      })),
+      addTournamentScore: (playerId, score) => set((state) => {
+        const currentLog = state.tournamentRollLog[playerId] || [];
+        return {
+          tournamentScores: {
+            ...state.tournamentScores,
+            [playerId]: (state.tournamentScores[playerId] || 0) + score
+          },
+          tournamentRollLog: {
+            ...state.tournamentRollLog,
+            [playerId]: [...currentLog, score]
+          }
+        };
+      }),
 
       nextTournamentRoll: () => set((state) => {
         const isEndOfPlayerTurn = state.tournamentCurrentRoll >= state.tournamentConfig.rollsPerPlayer;
@@ -163,27 +194,37 @@ export const useDiceStore = create<DiceState>()(
         };
       }),
 
-      startSPS: (bestOf) => set({
+      startSPSSetup: () => set({ spsPhase: "Setup" }),
+      startSPSGame: (bestOf, p1, p2) => set({
         spsConfig: { bestOf },
+        players: [p1, p2],
         spsScores: [0, 0],
-        spsCurrentRound: 1
+        spsCurrentRound: 1,
+        spsPhase: "SelectingP1",
+        spsChoices: [null, null]
       }),
-
-      updateSPSScore: (p1Win) => set((state) => {
-        const scores = [...state.spsScores] as [number, number];
-        if (p1Win === true) scores[0]++;
-        if (p1Win === false) scores[1]++;
-        return {
-          spsScores: scores,
-          spsCurrentRound: state.spsCurrentRound + 1
-        };
+      setSPSChoice: (idx, choice) => set((state) => {
+        const newChoices = [...state.spsChoices] as [SPSChoice, SPSChoice];
+        newChoices[idx] = choice;
+        return { spsChoices: newChoices };
       }),
+      setSPSPhase: (phase) => set({ spsPhase: phase }),
+      incrementSPSWin: (idx) => set((state) => {
+        const newScores = [...state.spsScores] as [number, number];
+        newScores[idx]++;
+        return { spsScores: newScores };
+      }),
+      resetSPSRound: () => set((state) => ({
+        spsCurrentRound: state.spsCurrentRound + 1,
+        spsChoices: [null, null],
+        spsPhase: "SelectingP1"
+      })),
 
       resetAll: () => set({
         gameMode: "Menu",
         players: [
-          { id: "1", name: "Player 1", color: "#CF8012" },
-          { id: "2", name: "Player 2", color: "#F46659" }
+          { id: "1", name: "Player 1", color: "#E53935" },
+          { id: "2", name: "Player 2", color: "#1E88E5" }
         ],
         currentPlayerIndex: 0,
         consecutiveSixes: 0,
@@ -191,11 +232,13 @@ export const useDiceStore = create<DiceState>()(
         activeSection: "Game",
         lastAiWisdom: null,
         tournamentScores: {},
-        spsScores: [0, 0]
+        tournamentRollLog: {},
+        spsScores: [0, 0],
+        spsPhase: "Setup"
       }),
     }),
     {
-      name: "smart-dice-storage",
+      name: "smart-dice-storage-v3",
     }
   )
 );
