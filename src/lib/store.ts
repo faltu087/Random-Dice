@@ -80,7 +80,10 @@ export const useDiceStore = create<DiceState>()(
   persist(
     (set) => ({
       gameMode: "Menu",
-      players: [{ id: "1", name: "Player 1", color: "#CF8012" }],
+      players: [
+        { id: "1", name: "Player 1", color: "#CF8012" },
+        { id: "2", name: "Player 2", color: "#F46659" }
+      ],
       currentPlayerIndex: 0,
       consecutiveSixes: 0,
       history: [],
@@ -178,7 +181,10 @@ export const useDiceStore = create<DiceState>()(
 
       resetAll: () => set({
         gameMode: "Menu",
-        players: [{ id: "1", name: "Player 1", color: "#CF8012" }],
+        players: [
+          { id: "1", name: "Player 1", color: "#CF8012" },
+          { id: "2", name: "Player 2", color: "#F46659" }
+        ],
         currentPlayerIndex: 0,
         consecutiveSixes: 0,
         history: [],
