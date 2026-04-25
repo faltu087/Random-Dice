@@ -16,23 +16,31 @@ export function CooldownTimer({ duration, isActive, onComplete }: CooldownTimerP
   const radius = (size - stroke) / 2;
   const circumference = radius * 2 * Math.PI;
 
+  // Countdown logic: strictly handles updating the local time state
   React.useEffect(() => {
     let timer: NodeJS.Timeout;
     if (isActive) {
       setTimeLeft(duration);
       timer = setInterval(() => {
         setTimeLeft((prev) => {
-          if (prev <= 0.1) {
-            clearInterval(timer);
-            onComplete();
-            return 0;
-          }
-          return prev - 0.1;
+          const next = prev - 0.1;
+          return next <= 0 ? 0 : next;
         });
       }, 100);
+    } else {
+      setTimeLeft(0);
     }
-    return () => clearInterval(timer);
-  }, [isActive, duration, onComplete]);
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [isActive, duration]);
+
+  // Completion logic: triggers the parent callback outside of the state update cycle
+  React.useEffect(() => {
+    if (isActive && timeLeft <= 0) {
+      onComplete();
+    }
+  }, [timeLeft, isActive, onComplete]);
 
   const offset = circumference - (timeLeft / duration) * circumference;
 
