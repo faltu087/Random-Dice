@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -8,7 +7,8 @@ import { useDiceStore, type SectionType, type Player } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { AlertCircle, User } from "lucide-react";
+import { AlertCircle, User, Sparkles } from "lucide-react";
+import { interpretRoll } from "@/ai/flows/interpret-roll";
 
 interface DiceSectionProps {
   type: SectionType;
@@ -32,6 +32,7 @@ export function DiceSection({
   const [isRolling, setIsRolling] = React.useState(false);
   const [onCooldown, setOnCooldown] = React.useState(false);
   const [showResult, setShowResult] = React.useState(false);
+  const [isAiLoading, setIsAiLoading] = React.useState(false);
   const [shouldSwitchPlayer, setShouldSwitchPlayer] = React.useState(false);
   const [activeRollingPlayer, setActiveRollingPlayer] = React.useState<Player | null>(null);
 
@@ -43,7 +44,8 @@ export function DiceSection({
     settings, 
     consecutiveSixes, 
     incrementSixes, 
-    resetSixes 
+    resetSixes,
+    lastAiWisdom
   } = useDiceStore();
   
   // Hydration fix
@@ -53,7 +55,7 @@ export function DiceSection({
 
   const currentPlayer = players[currentPlayerIndex] || players[0];
 
-  const rollDice = () => {
+  const rollDice = async () => {
     if (onCooldown || isRolling) return;
 
     if (settings.haptic && "vibrate" in navigator) {
@@ -64,29 +66,37 @@ export function DiceSection({
     setShowResult(false);
     setShouldSwitchPlayer(false);
     setActiveRollingPlayer(currentPlayer);
+    setIsAiLoading(true);
 
-    setTimeout(() => {
+    // Initial roll animation delay
+    setTimeout(async () => {
       const newValue = Math.floor(Math.random() * 6) + 1;
       setCurrentValue(newValue);
       setIsRolling(false);
-      setOnCooldown(true);
       setShowResult(true);
-      addHistory(type, newValue);
+      
+      // Fetch AI Wisdom
+      try {
+        const aiResponse = await interpretRoll({ roll: newValue, section: type });
+        addHistory(type, newValue, aiResponse.wisdom);
+      } catch (error) {
+        addHistory(type, newValue);
+      } finally {
+        setIsAiLoading(false);
+        setOnCooldown(true);
+      }
 
       // Rule Logic
       if (newValue === 6) {
         const nextCount = consecutiveSixes + 1;
         if (nextCount >= 3) {
-          // Triple six! Turn ends and moves to next player.
           setShouldSwitchPlayer(true);
           resetSixes();
         } else {
-          // Bonus turn! Stay on player.
           incrementSixes();
           setShouldSwitchPlayer(false);
         }
       } else {
-        // Not a six, turn ends.
         setShouldSwitchPlayer(true);
         resetSixes();
       }
@@ -150,7 +160,7 @@ export function DiceSection({
       </div>
 
       {/* Dice Area */}
-      <div className="relative flex flex-col items-center gap-8 z-10 flex-1 justify-center py-4 w-full">
+      <div className="relative flex flex-col items-center gap-6 z-10 flex-1 justify-center py-4 w-full">
         {/* Consecutive Sixes Badge */}
         {consecutiveSixes > 0 && !showResult && !isRolling && (
           <div className="absolute top-0 animate-bounce bg-white/20 backdrop-blur-md px-4 py-1 rounded-full text-white text-xs font-bold border border-white/20">
@@ -184,34 +194,50 @@ export function DiceSection({
           />
         </div>
 
-        {/* Dynamic Status / Result Display */}
-        <div className="h-32 text-center flex flex-col items-center justify-center w-full px-4">
+        {/* AI Insight & Result Display */}
+        <div className="min-h-32 text-center flex flex-col items-center justify-center w-full px-4 gap-2">
           {showResult ? (
-            <div className="animate-in fade-in zoom-in duration-500 flex flex-col items-center gap-3 w-full">
+            <div className="animate-in fade-in zoom-in duration-500 flex flex-col items-center gap-2 w-full">
               <div className="flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: activeRollingPlayer?.color }} />
-                <span className="text-white text-xs font-bold uppercase tracking-widest">
-                  {activeRollingPlayer?.name}'s Roll
+                <span className="text-white text-[10px] font-bold uppercase tracking-widest">
+                  {activeRollingPlayer?.name}'s Result
                 </span>
               </div>
               
-              <div className="flex flex-col items-center gap-2 w-full">
-                <span className="text-xl sm:text-2xl font-headline font-bold text-white bg-black/40 px-6 sm:px-8 py-3 rounded-2xl backdrop-blur-md border border-white/20 shadow-2xl w-full max-w-sm truncate">
-                  {interpretResult(currentValue)}
-                </span>
-                
-                {currentValue === 6 && !shouldSwitchPlayer && (
-                   <span className="text-white text-xs font-bold uppercase animate-pulse flex items-center gap-1">
-                     Extra Chance! Roll Again! 🌟
-                   </span>
-                )}
-                {currentValue === 6 && shouldSwitchPlayer && (
-                   <div className="flex items-center gap-1 text-red-200 text-xs font-bold uppercase">
-                     <AlertCircle className="w-3 h-3" />
-                     Triple Six! Turn Cancelled! ❌
-                   </div>
+              <span className="text-2xl font-headline font-bold text-white drop-shadow-lg">
+                {interpretResult(currentValue)}
+              </span>
+
+              {/* AI Wisdom Box */}
+              <div className="relative group max-w-sm w-full">
+                {isAiLoading ? (
+                  <div className="flex items-center justify-center gap-2 text-white/50 text-xs animate-pulse">
+                    <Sparkles className="w-3 h-3" /> Spirit is thinking...
+                  </div>
+                ) : lastAiWisdom && (
+                  <div className="bg-black/40 backdrop-blur-md border border-white/10 p-3 rounded-2xl shadow-xl animate-in slide-in-from-bottom-2 duration-700">
+                    <p className="text-white italic text-sm font-medium leading-tight">
+                      "{lastAiWisdom}"
+                    </p>
+                    <div className="absolute -top-1 -right-1">
+                       <Sparkles className="w-4 h-4 text-yellow-300 drop-shadow-sm" />
+                    </div>
+                  </div>
                 )}
               </div>
+                
+              {currentValue === 6 && !shouldSwitchPlayer && (
+                 <span className="text-white text-[10px] font-bold uppercase animate-pulse mt-1">
+                   Extra Chance! Roll Again! 🌟
+                 </span>
+              )}
+              {currentValue === 6 && shouldSwitchPlayer && (
+                 <div className="flex items-center gap-1 text-red-200 text-[10px] font-bold uppercase mt-1">
+                   <AlertCircle className="w-3 h-3" />
+                   Triple Six! Turn Cancelled! ❌
+                 </div>
+              )}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-700">
@@ -239,11 +265,10 @@ export function DiceSection({
             border: onCooldown ? '1px solid rgba(255,255,255,0.2)' : 'none'
           }}
         >
-          {onCooldown ? "COOLING DOWN..." : isRolling ? "ROLLING..." : "ROLL DICE"}
+          {onCooldown ? "NEXT TURN..." : isRolling ? "ROLLING..." : "ROLL DICE"}
         </Button>
       </div>
 
-      {/* Background decoration */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%] bg-white/5 rounded-full pointer-events-none blur-3xl opacity-50" />
     </div>
   );
