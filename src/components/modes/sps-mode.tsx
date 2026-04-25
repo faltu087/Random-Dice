@@ -1,9 +1,18 @@
-
 "use client";
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, RotateCcw, Home, Hand, Scissors, Square, ShieldQuestion, Swords } from "lucide-react";
+import { 
+  ChevronLeft, 
+  RotateCcw, 
+  Home, 
+  Hand, 
+  Scissors, 
+  Square, 
+  ShieldQuestion, 
+  Swords,
+  Trophy 
+} from "lucide-react";
 import { useDiceStore, type SPSChoice, type Player } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
