@@ -1,6 +1,4 @@
-# Random-Dice
-
-# Random-Dice (Smart Dice)
+# Render-
 
 An interactive, AI-powered multi-mode dice application built with Next.js, Genkit, and Tailwind CSS.
 
@@ -17,11 +15,12 @@ An interactive, AI-powered multi-mode dice application built with Next.js, Genki
 To push this project to your GitHub repository, you can use the following commands:
 
 ```bash
+echo "# Render-" >> README.md
 git init
-git add .
-git commit -m "Initial commit: 3-mode dice app with AI insights"
+git add README.md
+git commit -m "first commit"
 git branch -M main
-git remote add origin https://github.com/faltu087/Random-Dice.git
+git remote add origin https://github.com/faltu087/Render-.git
 git push -u origin main
 ```
 
