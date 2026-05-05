@@ -31,3 +31,4 @@ git push -u origin main
 - **Styling**: Tailwind CSS & ShadCN UI
 - **State Management**: Zustand
 - **Animations**: Framer Motion & Tailwind Animate
+# Render-
